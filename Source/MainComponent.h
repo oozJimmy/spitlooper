@@ -27,6 +27,7 @@ class MainComponent : public juce::AudioAppComponent
   void playButtonClicked();
   void loopButtonClicked();
   void copyLoopInputOverBuffer();
+  void recordBufferToInputLoop(juce::AudioBuffer<float>* buffer, int numInputChannels);
 
   std::atomic<bool> isPlaying;
   std::atomic<bool> isRecording;
@@ -42,7 +43,6 @@ class MainComponent : public juce::AudioAppComponent
   std::atomic<int> loopSampleIndex;
 
   std::atomic<int> loopReadPosition;
-  std::atomic<int> loopInputStartPosition;
 
   int crossfadeSamples;
 

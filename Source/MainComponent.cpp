@@ -173,8 +173,8 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
       {
         loopReadPosition.store(crossfadeSamples);
         loopSamplesRemaining = loopSampleIndex.load() + crossfadeSamples;
-        //loopReadPosition.store(0);
-        //loopSamplesRemaining = loopSampleIndex.load();
+        // loopReadPosition.store(0);
+        // loopSamplesRemaining = loopSampleIndex.load();
       }
       else
       {
@@ -184,28 +184,19 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     }
   }
 
-    // Save input to loopInputBuffer when recording is enabled
-    if (recording)
-    {
-      int samplesThisTime = bufferToFill.buffer->getNumSamples();
-      int inputIndex = loopInputSampleIndex.load();
+  // Save input to loopInputBuffer when recording is enabled
+  if (recording)
+  {
+    recordBufferToInputLoop(bufferToFill.buffer, maxInputChannels);
+  }
 
-      // Expand loopInputBuffer by 2x if we need more sample space
-      if (inputIndex + samplesThisTime >= loopInputBuffer.getNumSamples())
-      {
-        loopInputBuffer.setSize(loopInputBuffer.getNumChannels(),
-                                2 * loopInputBuffer.getNumSamples(), true, false, false);
-      }
-
-      // Copy input buffer to end of loopInputBuffer
-      for (int channel = 0; channel < loopInputBuffer.getNumChannels(); channel++)
-      {
-        loopInputBuffer.copyFrom(channel, inputIndex, *bufferToFill.buffer,
-                                 channel % maxInputChannels, 0, samplesThisTime);
-      }
-
-      loopInputSampleIndex.store(inputIndex + samplesThisTime);
-    }
+  //If loop is done recording move it to the main loop buffer
+  //Only supports single layer looping
+  if (inputLoopStored)
+  {
+    copyLoopInputOverBuffer();
+    inputLoopStored.store(false);
+  }
 }
 
 void MainComponent::releaseResources()
@@ -259,12 +250,55 @@ void MainComponent::loopButtonClicked()
   }
   else
   {
-    // Store position in loopBuffer where user clicked loop button
-    loopInputStartPosition.store(loopReadPosition.load());
-
     isRecording.store(true);
     loopButton.setColour(juce::TextButton::buttonColourId, juce::Colours::red);
   }
 }
 
-void copyLoopInputOverBuffer() {}
+void MainComponent::copyLoopInputOverBuffer()
+{
+  int numInputChannels = loopInputBuffer.getNumChannels();
+  int numInputSamples = loopInputSampleIndex.load();
+
+  loopBuffer.clear();
+  loopSampleIndex.store(0);
+
+  // Extend the loop buffer if the input is longer
+  if (numInputSamples > loopBuffer.getNumSamples())
+  {
+    loopBuffer.setSize(loopBuffer.getNumChannels(), numInputSamples);
+  }
+
+  // Copies loopInputBuffer data into loopBuffer
+  for (int channel = 0; channel < loopBuffer.getNumChannels(); channel++)
+  {
+    loopBuffer.copyFrom(channel, 0, loopInputBuffer, channel % numInputChannels, 0,
+                        numInputSamples);
+  }
+  loopSampleIndex.store(loopInputSampleIndex);
+
+  loopInputSampleIndex.store(0);
+  loopInputBuffer.clear();
+}
+
+void MainComponent::recordBufferToInputLoop(juce::AudioBuffer<float>* buffer, int numInputChannels)
+{
+  int samplesThisTime = buffer->getNumSamples();
+  int inputIndex = loopInputSampleIndex.load();
+
+  // Expand loopInputBuffer by 2x if we need more sample space
+  if (inputIndex + samplesThisTime >= loopInputBuffer.getNumSamples())
+  {
+    loopInputBuffer.setSize(loopInputBuffer.getNumChannels(), 2 * loopInputBuffer.getNumSamples(),
+                            true, false, false);
+  }
+
+  // Copy input buffer to end of loopInputBuffer
+  for (int channel = 0; channel < loopInputBuffer.getNumChannels(); channel++)
+  {
+    loopInputBuffer.copyFrom(channel, inputIndex, *buffer, channel % numInputChannels,
+                             0, samplesThisTime);
+  }
+
+  loopInputSampleIndex.store(inputIndex + samplesThisTime);
+}
