@@ -10,11 +10,11 @@
 #include "MainComponent.h"
 
 //==============================================================================
-class JDKlooperCloneApplication  : public juce::JUCEApplication
+class spitlooperApplication  : public juce::JUCEApplication
 {
 public:
     //==============================================================================
-    JDKlooperCloneApplication() {}
+    spitlooperApplication() {}
 
     const juce::String getApplicationName() override       { return ProjectInfo::projectName; }
     const juce::String getApplicationVersion() override    { return ProjectInfo::versionString; }
@@ -102,4 +102,4 @@ private:
 
 //==============================================================================
 // This macro generates the main() routine that launches the app.
-START_JUCE_APPLICATION (JDKlooperCloneApplication)
+START_JUCE_APPLICATION (spitlooperApplication)
