@@ -14,7 +14,7 @@ MainComponent::MainComponent()
   playButton.setColour(juce::TextButton::buttonColourId, juce::Colours::deepskyblue);
 
   addAndMakeVisible(&loopButton);
-  loopButton.setButtonText("loop");
+  loopButton.setButtonText("Record");
   loopButton.onClick = [this] { loopButtonClicked(); };
   loopButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
 
@@ -137,29 +137,30 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
 
       for (int sample = 0; sample < samplesThisTime; sample++)
       {
-        if (playing)
+        if (!playing)
         {
-          if (loopSamplesRemaining - sample < crossfadeSamples)
-          {
-            // End of loop, crossfade in loop beginning
-            auto fadeInGain = (float)(crossfadeSamples - (loopSamplesRemaining - sample)) /
-                              (float)crossfadeSamples;
-            auto fadeOutGain = (float)(loopSamplesRemaining - sample) / (float)crossfadeSamples;
-
-            outBuffer[sample] =
-                inBuffer[sample] * inputGainVal +
-                (fadeOutGain * loopRead[sample] +
-                 fadeInGain *
-                     loopCrossfadeRead[sample + (crossfadeSamples - loopSamplesRemaining)]) *
-                    loopGainVal;
-          }
-          else
-            // Mix input with the loop buffer
-            outBuffer[sample] = inBuffer[sample] * inputGainVal + loopRead[sample] * loopGainVal;
-        }
-        else
           // Forward input to output
           outBuffer[sample] = inBuffer[sample] * inputGainVal;
+          continue;
+        }
+
+        if (loopSamplesRemaining - sample >= crossfadeSamples)
+        {
+          // Mix input with the loop buffer
+          outBuffer[sample] = inBuffer[sample] * inputGainVal + loopRead[sample] * loopGainVal;
+          continue;
+        }
+
+        // At the end of recorded loop, now crossfade in loop beginning
+        auto fadeInGain =
+            (float)(crossfadeSamples - (loopSamplesRemaining - sample)) / (float)crossfadeSamples;
+        auto fadeOutGain = (float)(loopSamplesRemaining - sample) / (float)crossfadeSamples;
+
+        outBuffer[sample] =
+            inBuffer[sample] * inputGainVal +
+            (fadeOutGain * loopRead[sample] +
+             fadeInGain * loopCrossfadeRead[sample + (crossfadeSamples - loopSamplesRemaining)]) *
+                loopGainVal;
       }
     }
 
@@ -184,14 +185,14 @@ void MainComponent::getNextAudioBlock(const juce::AudioSourceChannelInfo& buffer
     }
   }
 
-  // Save input to loopInputBuffer when recording is enabled
+  // Add output buffer to loopInputBuffer when recording is enabled
+  // Using the output buffer allows for the loop to record over itself, when recording while the loop is playing
   if (recording)
   {
     recordBufferToInputLoop(bufferToFill.buffer, maxInputChannels);
   }
 
-  //If loop is done recording move it to the main loop buffer
-  //Only supports single layer looping
+  // If loop is done recording move it to the main loop buffer
   if (inputLoopStored)
   {
     copyLoopInputOverBuffer();
@@ -296,8 +297,8 @@ void MainComponent::recordBufferToInputLoop(juce::AudioBuffer<float>* buffer, in
   // Copy input buffer to end of loopInputBuffer
   for (int channel = 0; channel < loopInputBuffer.getNumChannels(); channel++)
   {
-    loopInputBuffer.copyFrom(channel, inputIndex, *buffer, channel % numInputChannels,
-                             0, samplesThisTime);
+    loopInputBuffer.copyFrom(channel, inputIndex, *buffer, channel % numInputChannels, 0,
+                             samplesThisTime);
   }
 
   loopInputSampleIndex.store(inputIndex + samplesThisTime);
